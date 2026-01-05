@@ -1,8 +1,18 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  await app.listen(3000);
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    }),
+  );
+  app.enableCors();
+  app.setGlobalPrefix('api/v1');
+  await app.listen(3000, '0.0.0.0');
+  console.log(`Backend corriendo y aceptando conexiones externas en puerto 3000 🚀`);
 }
 bootstrap();
