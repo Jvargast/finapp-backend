@@ -24,6 +24,17 @@ enum Currency {
   CLP
   USD
   EUR
+  CAD 
+  UF  
+  BTC 
+  GBP
+}
+
+enum GoalType {
+  SAVING      
+  DEBT        
+  INVESTMENT  
+  PURCHASE  
 }
 
 enum TransactionType {
@@ -55,6 +66,7 @@ model User {
   phone         String?   @unique
   password      String?   
   hashedRefreshToken String? 
+  pushToken     String?
 
   provider      AuthProvider @default(LOCAL)
   socialId      String?
@@ -72,6 +84,7 @@ model User {
   categories    Category[]
   budgets       Budget[]
   verificationCodes VerificationCode[]
+  goals FinancialGoal[]
 
   @@map("users")
 }
@@ -99,7 +112,7 @@ model Account {
   currency  Currency @default(CLP)
   
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions  Transaction[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -113,7 +126,7 @@ model Category {
   color     String?         
   type      TransactionType 
   userId    String?         
-  user      User?           @relation(fields: [userId], references: [id])
+  user      User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   transactions Transaction[]
   budgets      Budget[]
@@ -129,7 +142,7 @@ model Transaction {
   date          DateTime        @default(now()) 
 
   accountId     String
-  account       Account         @relation(fields: [accountId], references: [id])
+  account       Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   categoryId    String          
   category      Category        @relation(fields: [categoryId], references: [id])
@@ -140,6 +153,29 @@ model Transaction {
   @@map("transactions")
 }
 
+model FinancialGoal {
+  id          String   @id @default(uuid())
+  name        String   
+  type        GoalType
+  
+  targetAmount  Decimal 
+  currentAmount Decimal @default(0)
+  
+  deadline      DateTime?
+  
+  interestRate  Decimal? @default(0) 
+  
+  isCompleted   Boolean  @default(false)
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("financial_goals")
+}
+
 model Budget {
   id            String    @id @default(uuid())
   amount        Decimal   
@@ -147,7 +183,7 @@ model Budget {
   year          Int       
   
   userId        String
-  user          User      @relation(fields: [userId], references: [id])
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   categoryId    String
   category      Category  @relation(fields: [categoryId], references: [id])

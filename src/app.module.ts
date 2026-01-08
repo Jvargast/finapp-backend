@@ -9,6 +9,9 @@ import { CategoriesModule } from './categories/categories.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
+import { NotificationsModule } from './notifications/notifications.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { GoalsModule } from './goals/goals.module';
 
 @Module({
   imports: [
@@ -22,6 +25,9 @@ import { join } from 'path';
       rootPath: join(process.cwd(), 'uploads'),
       serveRoot: '/uploads',
     }),
+    NotificationsModule,
+    ScheduleModule.forRoot(),
+    GoalsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

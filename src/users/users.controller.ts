@@ -26,10 +26,15 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import * as fs from 'fs';
+import { UpdatePushTokenDto } from './dto/update-push-token.dto';
+import { NotificationsService } from 'src/notifications/notifications.service';
 
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   @Post()
   create(@Body() createUserDto: CreateUserDto) {
@@ -39,7 +44,8 @@ export class UsersController {
   @UseGuards(AuthGuard('jwt'))
   @Patch('setup')
   async completeSetup(@Req() req, @Body() dto: CompleteSetupDto) {
-    return this.usersService.completeSetup(req.user.id, dto);
+    const userId = req.user?.sub || req.user?.id || req.user?.userId;
+    return this.usersService.completeSetup(userId, dto);
   }
 
   @UseGuards(AuthGuard('jwt'))
@@ -130,6 +136,31 @@ export class UsersController {
     return this.usersService.updateProfileSimple(userId, {
       avatarUrl: fileUrl,
     });
+  }
+
+  @Patch('push-token')
+  @UseGuards(AuthGuard('jwt'))
+  async updatePushToken(@Req() req, @Body() dto: UpdatePushTokenDto) {
+    const userId = req.user?.sub || req.user?.id || req.user?.userId;
+    return this.usersService.updatePushToken(userId, dto.pushToken);
+  }
+
+  @Delete('me')
+  @UseGuards(AuthGuard('jwt'))
+  async deleteAccount(@Req() req) {
+    const userId = req.user?.sub || req.user?.id || req.user?.userId;
+    return this.usersService.deleteAccount(userId);
+  }
+
+  @Post('test-notification')
+  @UseGuards(AuthGuard('jwt'))
+  async testNotification(@Req() req) {
+    const userId = req.user['id'];
+    return this.notificationsService.sendToUser(
+      userId,
+      '¡Servicio Modular!',
+      'Ahora puedes invocarme desde cualquier parte de la app 😎',
+    );
   }
 
   @Get()

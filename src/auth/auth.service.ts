@@ -184,6 +184,7 @@ export class AuthService {
         mainGoal: prefs.mainGoal || 'save',
         darkMode: prefs.darkMode ?? false,
         notifications: prefs.notifications ?? true,
+        setupCompleted: prefs.setupCompleted ?? false,
       },
     };
   }

@@ -266,6 +266,25 @@ export class UsersService {
     return { message: 'Datos actualizados con éxito' };
   }
 
+  async updatePushToken(userId: string, token: string) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        pushToken: token,
+      },
+      select: {
+        id: true,
+        pushToken: true,
+      },
+    });
+  }
+
+  async deleteAccount(userId: string) {
+    return this.prisma.user.delete({
+      where: { id: userId },
+    });
+  }
+
   private formatUserResponse(user: any) {
     const profile = user.profile || {};
     const prefs = profile.preferences || {};

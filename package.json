@@ -27,11 +27,14 @@
     "@nestjs/mapped-types": "*",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^10.0.0",
-    "@nestjs/serve-static": "^5.0.4",
+    "@nestjs/schedule": "^6.1.0",
+    "@nestjs/serve-static": "^4.0.2",
     "@prisma/client": "^6.0.0",
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
+    "date-fns": "^4.1.0",
+    "expo-server-sdk": "^4.0.0",
     "google-libphonenumber": "^3.2.43",
     "nodemailer": "^7.0.12",
     "passport": "^0.7.0",
@@ -84,5 +87,18 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "overrides": {
+    "glob": "^10.4.5",
+    "rimraf": "^5.0.0",
+    "qs": "6.14.0",
+    "body-parser": {
+      "qs": "6.14.0"
+    },
+    "express": {
+      "qs": "6.14.0"
+    },
+    "path-to-regexp": "0.1.12",
+    "cross-spawn": "^7.0.6"
   }
 }
