@@ -31,10 +31,12 @@ enum Currency {
 }
 
 enum GoalType {
-  SAVING      
+  SAVING     
   DEBT        
   INVESTMENT  
-  PURCHASE  
+  HOUSING    
+  CONTROL     
+  RETIREMENT 
 }
 
 enum TransactionType {
@@ -108,6 +110,7 @@ model UserProfile {
 model Account {
   id        String   @id @default(uuid())
   name      String   
+  type      String  @default("Bank")
   balance   Decimal  @default(0) 
   currency  Currency @default(CLP)
   
@@ -154,24 +157,23 @@ model Transaction {
 }
 
 model FinancialGoal {
-  id          String   @id @default(uuid())
-  name        String   
-  type        GoalType
+  id            String    @id @default(uuid())
+  name          String    
+  type          GoalType
+  currency      Currency  @default(CLP) 
   
   targetAmount  Decimal 
-  currentAmount Decimal @default(0)
+  currentAmount Decimal   @default(0)
+  monthlyQuota  Decimal?  @default(0) 
+  estimatedYield Decimal? @default(0) 
   
   deadline      DateTime?
-  
-  interestRate  Decimal? @default(0) 
-  
-  isCompleted   Boolean  @default(false)
-
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  interestRate  Decimal?  @default(0) 
+  isCompleted   Boolean   @default(false)
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@map("financial_goals")
 }

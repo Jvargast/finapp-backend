@@ -5,8 +5,9 @@ import {
   IsString,
   IsDateString,
   Min,
+  IsNotEmpty,
 } from 'class-validator';
-import { GoalType } from '@prisma/client';
+import { Currency, GoalType } from '@prisma/client';
 
 export class CreateGoalDto {
   @IsString()
@@ -15,6 +16,10 @@ export class CreateGoalDto {
   @IsEnum(GoalType)
   type: GoalType;
 
+  @IsEnum(Currency)
+  @IsNotEmpty()
+  currency: Currency;
+
   @IsNumber()
   @Min(1)
   targetAmount: number;
@@ -22,6 +27,16 @@ export class CreateGoalDto {
   @IsNumber()
   @IsOptional()
   currentAmount?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  monthlyQuota?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  estimatedYield?: number;
 
   @IsDateString()
   deadline: string;

@@ -34,7 +34,7 @@ export class AuthController {
   @UseGuards(AuthGuard('jwt'))
   @Post('logout')
   logout(@Req() req) {
-    const userId = req.user['userId'] || req.user['sub'] || req.user['id'];
+    const userId = req.user.userId || req.user.sub || req.user.id;
 
     if (!userId) {
       throw new UnauthorizedException('ID no encontrado');
