@@ -1,9 +1,15 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGoalDto } from './dto/create-goal.dto';
-import { GoalType, TransactionType } from '@prisma/client';
+import { GoalRole, GoalType, TransactionType } from '@prisma/client';
 import { differenceInMonths } from 'date-fns';
 import { IndicatorsService } from 'src/services/indicators.service';
+import { UpdateGoalDto } from './dto/update-goal.dto';
 
 @Injectable()
 export class GoalsService {
@@ -13,12 +19,56 @@ export class GoalsService {
   ) {}
 
   async create(userId: string, createGoalDto: CreateGoalDto) {
-    return this.prisma.financialGoal.create({
-      data: {
-        ...createGoalDto,
-        userId,
-      },
-    });
+    try {
+      const goal = await this.prisma.financialGoal.create({
+        data: {
+          name: createGoalDto.name,
+          type: createGoalDto.type,
+          currency: createGoalDto.currency,
+          targetAmount: createGoalDto.targetAmount,
+          currentAmount: createGoalDto.currentAmount || 0,
+          monthlyQuota: createGoalDto.monthlyQuota || 0,
+          estimatedYield: createGoalDto.estimatedYield || 0,
+          deadline: new Date(createGoalDto.deadline),
+          interestRate: createGoalDto.interestRate || 0,
+
+          user: {
+            connect: { id: userId },
+          },
+
+          participants: {
+            create: {
+              userId: userId,
+              role: 'OWNER',
+              status: 'ACCEPTED',
+              invitedBy: userId,
+            },
+          },
+        },
+        include: {
+          participants: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  profile: {
+                    select: {
+                      firstName: true,
+                      lastName: true,
+                      avatarUrl: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      return goal;
+    } catch (error) {
+      throw error;
+    }
   }
 
   async findAllWithAnalysis(userId: string) {
@@ -31,9 +81,24 @@ export class GoalsService {
     const UF_VALUE = await this.indicatorsService.getUFValue();
 
     const goals = await this.prisma.financialGoal.findMany({
-      where: { userId },
+      where: {
+        participants: {
+          some: {
+            userId: userId,
+            status: 'ACCEPTED',
+          },
+        },
+      },
+      include: {
+        participants: {
+          include: {
+            user: {
+              include: { profile: true },
+            },
+          },
+        },
+      },
     });
-
     const cashFlow = await this.getUserMonthlyCashFlow(userId, mainCurrency);
     const monthlySavingsCapacity = cashFlow.income - cashFlow.expenses;
 
@@ -130,7 +195,35 @@ export class GoalsService {
     const mainCurrency = user.profile?.mainCurrency || 'CLP';
     const UF_VALUE = await this.indicatorsService.getUFValue();
     const goal = await this.prisma.financialGoal.findFirst({
-      where: { id: goalId, userId },
+      where: {
+        id: goalId,
+        participants: {
+          some: {
+            userId: userId,
+            status: 'ACCEPTED',
+          },
+        },
+      },
+      include: {
+        participants: {
+          select: {
+            role: true,
+            user: {
+              select: {
+                id: true,
+                email: true,
+                profile: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                    avatarUrl: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!goal) {
@@ -214,7 +307,6 @@ export class GoalsService {
         break;
     }
 
-    console.log(analysis);
     return {
       ...goal,
       analysis,
@@ -630,6 +722,161 @@ export class GoalsService {
       type: 'RETIREMENT_ANALYSIS',
       advice,
     };
+  }
+
+  async joinByToken(userId: string, shareToken: string) {
+    const goal = await this.prisma.financialGoal.findUnique({
+      where: { shareToken },
+    });
+
+    if (!goal) throw new NotFoundException('Token de invitación inválido');
+
+    const existing = await this.prisma.goalParticipant.findUnique({
+      where: {
+        userId_goalId: { userId, goalId: goal.id },
+      },
+    });
+
+    if (existing)
+      return { message: 'Ya eres parte de esta meta', goalId: goal.id };
+
+    await this.prisma.goalParticipant.create({
+      data: {
+        userId,
+        goalId: goal.id,
+        role: 'EDITOR',
+        status: 'ACCEPTED',
+        joinedAt: new Date(),
+      },
+    });
+
+    return { message: 'Te has unido exitosamente', goalId: goal.id };
+  }
+
+  async removeParticipant(
+    requesterId: string,
+    goalId: string,
+    participantIdToRemove: string,
+  ) {
+    if (requesterId === participantIdToRemove) {
+      throw new BadRequestException(
+        'No puedes eliminarte a ti mismo. Usa la opción de salir.',
+      );
+    }
+
+    const requesterParticipant = await this.prisma.goalParticipant.findUnique({
+      where: {
+        userId_goalId: {
+          userId: requesterId,
+          goalId: goalId,
+        },
+      },
+    });
+
+    if (!requesterParticipant || requesterParticipant.role !== 'OWNER') {
+      throw new ForbiddenException(
+        'Solo el creador de la meta puede eliminar participantes.',
+      );
+    }
+
+    const targetParticipant = await this.prisma.goalParticipant.findUnique({
+      where: {
+        userId_goalId: {
+          userId: participantIdToRemove,
+          goalId: goalId,
+        },
+      },
+    });
+
+    if (!targetParticipant) {
+      throw new NotFoundException('El participante no existe en esta meta.');
+    }
+
+    await this.prisma.goalParticipant.delete({
+      where: {
+        userId_goalId: {
+          userId: participantIdToRemove,
+          goalId: goalId,
+        },
+      },
+    });
+
+    return { message: 'Participante eliminado correctamente' };
+  }
+
+  async leaveGoal(userId: string, goalId: string) {
+    const participant = await this.prisma.goalParticipant.findUnique({
+      where: {
+        userId_goalId: {
+          userId: userId,
+          goalId: goalId,
+        },
+      },
+    });
+
+    if (!participant) {
+      throw new NotFoundException('No eres parte de esta meta.');
+    }
+
+    if (participant.role === 'OWNER') {
+      throw new BadRequestException(
+        'El creador no puede abandonar la meta. Debes eliminarla o transferir la propiedad.',
+      );
+    }
+
+    await this.prisma.goalParticipant.delete({
+      where: {
+        userId_goalId: {
+          userId: userId,
+          goalId: goalId,
+        },
+      },
+    });
+
+    return { message: 'Has abandonado la meta exitosamente.' };
+  }
+
+  async update(userId: string, goalId: string, updateData: UpdateGoalDto) {
+    const goal = await this.prisma.financialGoal.findUnique({
+      where: { id: goalId },
+      include: { participants: true },
+    });
+
+    if (!goal) throw new NotFoundException('Meta no encontrada');
+
+    const participant = goal.participants.find((p) => p.userId === userId);
+    if (!participant || participant.role !== GoalRole.OWNER) {
+      throw new ForbiddenException('Solo el creador puede editar esta meta.');
+    }
+
+    const {
+      name,
+      targetAmount,
+      monthlyQuota,
+      estimatedYield,
+      deadline,
+      interestRate,
+      isCompleted,
+    } = updateData;
+
+    const dataToUpdate: any = {};
+
+    if (name) dataToUpdate.name = name;
+    if (targetAmount) dataToUpdate.targetAmount = targetAmount;
+    if (monthlyQuota !== undefined) dataToUpdate.monthlyQuota = monthlyQuota;
+    if (estimatedYield !== undefined)
+      dataToUpdate.estimatedYield = estimatedYield;
+    if (interestRate !== undefined) dataToUpdate.interestRate = interestRate;
+    if (isCompleted !== undefined) dataToUpdate.isCompleted = isCompleted;
+
+    if (deadline) {
+      dataToUpdate.deadline = new Date(deadline);
+    }
+
+    return this.prisma.financialGoal.update({
+      where: { id: goalId },
+      data: dataToUpdate,
+    });
   }
 
   async delete(userId: string, goalId: string) {

@@ -39,6 +39,23 @@ enum GoalType {
   RETIREMENT 
 }
 
+enum GoalRole {
+  OWNER   
+  EDITOR  
+  VIEWER  
+}
+
+enum InvitationStatus {
+  PENDING  
+  ACCEPTED  
+  REJECTED  
+}
+
+enum GoalTransactionType {
+  DEPOSIT  
+  WITHDRAW  
+}
+
 enum TransactionType {
   INCOME
   EXPENSE
@@ -86,7 +103,9 @@ model User {
   categories    Category[]
   budgets       Budget[]
   verificationCodes VerificationCode[]
-  goals FinancialGoal[]
+  createdGoals    FinancialGoal[] @relation("GoalOwner")
+  goalParticipations GoalParticipant[]
+  goalTransactions GoalTransaction[]
 
   @@map("users")
 }
@@ -100,6 +119,7 @@ model UserProfile {
   avatarUrl     String?  
   preferences   Json?     
   mainCurrency  Currency  @default(CLP)
+
   plan          SubscriptionPlan @default(FREE)
   planExpiresAt DateTime?
   userId        String    @unique 
@@ -110,14 +130,22 @@ model UserProfile {
 model Account {
   id        String   @id @default(uuid())
   name      String   
-  type      String  @default("Bank")
+
+  type      String   @default("Cash") 
+  institution    String?
+  externalId     String?
+  lastSyncedAt   DateTime?
+
   balance   Decimal  @default(0) 
   currency  Currency @default(CLP)
   
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   transactions  Transaction[]
+
   createdAt DateTime @default(now())
+
   updatedAt DateTime @updatedAt
   @@map("accounts")
 }
@@ -128,6 +156,7 @@ model Category {
   icon      String?         
   color     String?         
   type      TransactionType 
+
   userId    String?         
   user      User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -144,11 +173,16 @@ model Transaction {
   description   String?
   date          DateTime        @default(now()) 
 
+  externalId     String?
+
   accountId     String
   account       Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   categoryId    String          
   category      Category        @relation(fields: [categoryId], references: [id])
+
+  goalId        String?
+  goal          FinancialGoal?  @relation(fields: [goalId], references: [id])
 
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
@@ -161,21 +195,61 @@ model FinancialGoal {
   name          String    
   type          GoalType
   currency      Currency  @default(CLP) 
-  
   targetAmount  Decimal 
   currentAmount Decimal   @default(0)
   monthlyQuota  Decimal?  @default(0) 
   estimatedYield Decimal? @default(0) 
-  
   deadline      DateTime?
   interestRate  Decimal?  @default(0) 
   isCompleted   Boolean   @default(false)
+
+  shareToken    String?   @unique @default(uuid())
+
   userId        String
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User      @relation("GoalOwner", fields: [userId], references: [id], onDelete: Cascade)
+
+  participants  GoalParticipant[]
+  transactions  Transaction[]
+  goalTransactions  GoalTransaction[]
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   @@map("financial_goals")
+}
+
+model GoalTransaction {
+  id        String   @id @default(uuid())
+  amount    Decimal 
+  type      GoalTransactionType 
+  date      DateTime @default(now())
+  
+  goalId    String
+  goal      FinancialGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("goal_transactions")
+}
+
+model GoalParticipant {
+  id            String           @id @default(uuid())
+  
+  role          GoalRole         @default(VIEWER)
+  status        InvitationStatus @default(PENDING)
+  
+  joinedAt      DateTime         @default(now())
+  invitedBy     String?         
+
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  goalId        String
+  goal          FinancialGoal    @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, goalId])
+  @@map("goal_participants")
 }
 
 model Budget {
